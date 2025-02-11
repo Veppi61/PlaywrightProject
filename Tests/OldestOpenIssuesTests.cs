@@ -23,8 +23,7 @@ namespace PlaywrightProject.Tests
                   }
                 }";
 
-        [Test]
-        public async Task VerifyThat10OldestOpenIssuesReturned()
+        private async Task<Response> FetchIssuesDataAsync()
         {
             var response = await _gitHubClient.PostGraphQLQueryAsync(_query);
             var data = await response.Content.ReadAsStringAsync();
@@ -32,55 +31,55 @@ namespace PlaywrightProject.Tests
             Assert.IsFalse(string.IsNullOrEmpty(data), "JSON response is empty.");
 
             var issueResult = JsonConvert.DeserializeObject<Response>(data);
+            Assert.NotNull(issueResult, "Failed to deserialize JSON response.");
+            Assert.NotNull(issueResult.Data, "Response contains no 'data' field.");
+            Assert.NotNull(issueResult.Data.Repository, "Response contains no 'repository' field.");
+            Assert.NotNull(issueResult.Data.Repository.Issues, "Response contains no 'issues' field.");
+            Assert.NotNull(issueResult.Data.Repository.Issues.Nodes, "Response contains no 'nodes' field.");
 
-            Assert.IsNotNull(issueResult);
-            Assert.IsNotNull(issueResult.Data);
-            Assert.IsNotNull(issueResult.Data.Repository);
-            Assert.IsNotNull(issueResult.Data.Repository.Issues);
-            Assert.IsNotNull(issueResult.Data.Repository.Issues.Nodes);
-            Assert.IsTrue(issueResult.Data.Repository.Issues.Nodes.Count == 10, "Incorrect number of issues returned");
+            return issueResult;
+        }
+
+        [Test]
+        public async Task VerifyThat10OldestOpenIssuesReturned()
+        {
+            var issueResult = await FetchIssuesDataAsync();
+            Assert.That(issueResult.Data.Repository.Issues.Nodes.Count, Is.EqualTo(10),
+                $"Expected 10 issues, but got {issueResult.Data.Repository.Issues.Nodes.Count}.");
         }
 
         [Test]
         public async Task VerifyIssuesContainBasicDetails()
         {
-            var response = await _gitHubClient.PostGraphQLQueryAsync(_query);
-            var data = await response.Content.ReadAsStringAsync();
+            var issueResult = await FetchIssuesDataAsync();
 
-            Assert.IsFalse(string.IsNullOrEmpty(data), "JSON response is empty.");
-
-            var issueResult = JsonConvert.DeserializeObject<Response>(data);
-
-            int issues = issueResult.Data.Repository.Issues.Nodes.Count;
-
-            for(int i = 0; i < issues; i++)
+            Assert.Multiple(() =>
             {
-                Assert.IsNotNull(issueResult.Data.Repository.Issues.Nodes[i].Title);
-                Assert.IsNotNull(issueResult.Data.Repository.Issues.Nodes[i].Url);
-                Assert.IsNotNull(issueResult.Data.Repository.Issues.Nodes[i].CreatedAt);
-                Assert.IsNotNull(issueResult.Data.Repository.Issues.Nodes[i].Author);
-                Assert.IsNotNull(issueResult.Data.Repository.Issues.Nodes[i].Author.Login);
-                Assert.IsNotNull(issueResult.Data.Repository.Issues.Nodes[i].State);
-            }
+                foreach (var issue in issueResult.Data.Repository.Issues.Nodes)
+                {
+                    Assert.IsNotNull(issue.Title, "Issue title is null.");
+                    Assert.IsNotNull(issue.Url, $"Issue '{issue.Title}' has no URL.");
+                    Assert.IsNotNull(issue.CreatedAt, $"Issue '{issue.Title}' has no creation date.");
+                    Assert.IsNotNull(issue.Author, $"Issue '{issue.Title}' has no author.");
+                    Assert.IsNotNull(issue.Author.Login, $"Issue '{issue.Title}' has no author login.");
+                    Assert.IsNotNull(issue.State, $"Issue '{issue.Title}' has no state.");
+                }
+            });
         }
 
         [Test]
         public async Task VerifyEachIssueShouldBeOpen()
         {
-            var response = await _gitHubClient.PostGraphQLQueryAsync(_query);
-            var data = await response.Content.ReadAsStringAsync();
+            var issueResult = await FetchIssuesDataAsync();
 
-            Assert.IsFalse(string.IsNullOrEmpty(data), "JSON response is empty.");
-
-            var issueResult = JsonConvert.DeserializeObject<Response>(data);
-
-            int issues = issueResult.Data.Repository.Issues.Nodes.Count;
-
-            for (int i = 0; i < issues; i++)
+            Assert.Multiple(() =>
             {
-                string state = issueResult.Data.Repository.Issues.Nodes[i].State.ToString();
-                Assert.That(state, Is.EqualTo("OPEN"));
-            }
+                foreach (var issue in issueResult.Data.Repository.Issues.Nodes)
+                {
+                    Assert.That(issue.State, Is.EqualTo("OPEN"),
+                        $"Issue '{issue.Title}' is in state '{issue.State}', expected 'OPEN'.");
+                }
+            });
         }
     }
 }

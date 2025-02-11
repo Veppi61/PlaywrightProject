@@ -7,22 +7,25 @@ namespace PlaywrightProject.Utils
     public class GitHubClient
     {
         private readonly HttpClient _httpClient;
+        private readonly JsonModel _config;
 
         public GitHubClient()
         {
-            string jsonData = File.ReadAllText("config.json");  
-            var deserializedJsonData = JsonConvert.DeserializeObject<JsonModel>(jsonData);
-            
+            _config = ReadConf();
             _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {deserializedJsonData.GitHubToken}");
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", deserializedJsonData.GitHubToken);
+            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_config.GitHubToken}");
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", _config.GitHubToken);
+        }
+
+        private JsonModel ReadConf()
+        {
+            string jsonData = File.ReadAllText("config.json");
+            return JsonConvert.DeserializeObject<JsonModel>(jsonData);
         }
 
         public async Task<HttpResponseMessage> PostGraphQLQueryAsync(string query)
         {
-            string jsonData = File.ReadAllText("config.json");
-            var deserializedJsonData = JsonConvert.DeserializeObject<JsonModel>(jsonData);
-            var response = await _httpClient.PostAsJsonAsync(deserializedJsonData.Url, new { query });
+            var response = await _httpClient.PostAsJsonAsync(_config.Url, new { query });
             response.EnsureSuccessStatusCode();
             return response;
         }
